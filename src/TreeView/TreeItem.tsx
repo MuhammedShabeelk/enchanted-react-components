@@ -16,7 +16,6 @@ import React, { ReactNode } from 'react';
 import MuiTreeItem, { TreeItemProps } from '@mui/lab/TreeItem';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import { styled } from '@mui/material/styles';
 
 /**
  * Full Figma-spec layout for a tree item row (212 × 28 px):
@@ -53,88 +52,28 @@ export interface EnhancedTreeItemProps extends Omit<TreeItemProps, 'endIcon'> {
   endAction?: ReactNode;
   /** Buttons revealed only on row hover / keyboard focus (opacity 0 → 1). */
   hoverActions?: ReactNode;
-  /** @deprecated Use detailsText for inline detail text instead. */
-  secondaryLabel?: ReactNode;
 }
 
-/* ── Styled wrapper ───────────────────────────────────────────────────────── */
-const StyledTreeItem = styled(MuiTreeItem)(({ theme }) => {
-  return {
-    '& .MuiTreeItem-content': {
-      minHeight: '28px',
-      height: 'auto',
-      padding: '0 6px 0 4px',
-      borderRadius: '2px',
-      gap: '4px',
-      '&:hover': { backgroundColor: theme.palette.action.hover },
-      '&.Mui-selected': {
-        backgroundColor: theme.palette.action.selectedOpacityModified,
-        '&:hover': { backgroundColor: theme.palette.action.selectedOpacityHover },
-      },
-      '&.Mui-focused': {
-        backgroundColor: 'transparent',
-        outline: `2px solid ${theme.palette.primary.main}`,
-        outlineOffset: '-2px',
-        '&.Mui-selected': { backgroundColor: theme.palette.action.selectedOpacityModified },
-      },
-      '&.Mui-disabled': { opacity: 1 },
-      '&:hover .tree-item-hover-actions, &.Mui-focused .tree-item-hover-actions': {
-        opacity: 1,
-      },
-    },
-    '& .MuiTreeItem-iconContainer': {
-      width: '16px',
-      height: '16px',
-      flexShrink: 0,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginLeft: 0,
-      marginRight: 0,
-      '& svg': { fontSize: '16px', color: theme.palette.text.secondary },
-    },
-    '& .MuiTreeItem-label': {
-      padding: 0,
-      overflow: 'hidden',
-      display: 'flex',
-      alignItems: 'center',
-      flex: 1,
-      minWidth: 0,
-      ...theme.typography.body2,
-      color: theme.palette.text.primary,
-    },
-    '&.Mui-disabled > .MuiTreeItem-content': {
-      '& .tree-item-icon svg': { color: theme.palette.text.disabled },
-      '& .tree-item-label-text': { color: theme.palette.text.disabled },
-    },
-    '& .MuiTreeItem-group': {
-      marginLeft: '12px',
-      paddingLeft: '8px',
-      borderLeft: `1px solid ${theme.palette.border.secondary}`,
-    },
-  };
-});
-
+const ICON_SLOT_SX = {
+  width: 16,
+  height: 16,
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  '& svg': { fontSize: '16px' },
+} as const;
 const IconSlot = ({ className, children }: { className?: string; children: ReactNode }) => {
   return (
     <Box
       className={`tree-item-icon${className ? ` ${className}` : ''}`}
-      sx={{
-        width: 16,
-        height: 16,
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        '& svg': { fontSize: '16px' },
-      }}
+      sx={ICON_SLOT_SX}
     >
       {children}
     </Box>
   );
 };
 
-/* ── TreeItem ──────────────────────────────────────────────────────────────── */
 const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
   (
     {
@@ -146,7 +85,6 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
       endIcon,
       endAction,
       hoverActions,
-      secondaryLabel,
       ...props
     },
     ref,
@@ -162,46 +100,27 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
           minWidth: 0,
         }}
       >
-        {/* Start icon 16×16 */}
         {startIcon && <IconSlot className="tree-item-start-icon">{startIcon}</IconSlot>}
 
-        {/* Status badge 16×16 */}
         {statusBadge && (
-          <Box
-            className="tree-item-icon tree-item-status"
-            sx={{
-              width: 16,
-              height: 16,
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+          <Box className="tree-item-icon tree-item-status" sx={ICON_SLOT_SX}>
             {statusBadge}
           </Box>
         )}
 
-        {/* Main label text – fills remaining space */}
-        <Box
+        <Typography
           className="tree-item-label-text"
+          variant="body2"
+          color="text.primary"
+          noWrap
           sx={{
             flex: '1 0 0',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
             minWidth: 0,
           }}
         >
           {label}
-          {secondaryLabel && (
-            <Typography variant="caption" color="text.secondary" display="block" noWrap>
-              {secondaryLabel}
-            </Typography>
-          )}
-        </Box>
+        </Typography>
 
-        {/* Details: detailsIcon 16×16 + detailsText (body2, text-secondary) */}
         {(detailsIcon !== undefined || detailsText !== undefined) && (
           <Box
             sx={{
@@ -213,16 +132,16 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
           >
             {detailsIcon && <IconSlot className="tree-item-details-icon">{detailsIcon}</IconSlot>}
             {detailsText !== undefined && (
-              <Typography variant="body2" color="text.secondary" noWrap sx={{ flexShrink: 0 }}>
+              <Typography className="tree-item-details-text" variant="body2" color="text.secondary" noWrap sx={{ flexShrink: 0 }}>
                 {detailsText}
               </Typography>
             )}
           </Box>
         )}
 
-        {/* Always-visible end section: endIcon 16×16 + endAction; 8px gap */}
         {(endIcon !== undefined || endAction !== undefined) && (
           <Box
+            className="tree-item-end-action"
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -235,17 +154,23 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
           </Box>
         )}
 
-        {/* Hover-only actions */}
         {hoverActions && (
           <Box
             className="tree-item-hover-actions"
             sx={{
+              maxWidth: 0,
+              overflow: 'hidden',
               opacity: 0,
-              transition: 'opacity 0.2s ease',
+              transition: 'max-width 0.2s ease, opacity 0.2s ease',
               display: 'flex',
               flexShrink: 0,
               alignItems: 'center',
-              gap: '4px',
+              gap: '8px',
+              marginLeft: '4px',
+              '.MuiTreeItem-content:hover &, .MuiTreeItem-content.Mui-focused &': {
+                maxWidth: '200px',
+                opacity: 1,
+              },
             }}
           >
             {hoverActions}
@@ -254,7 +179,7 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
       </Box>
     );
 
-    return <StyledTreeItem ref={ref} {...props} label={customLabel} />;
+    return <MuiTreeItem ref={ref} {...props} label={customLabel} />;
   },
 );
 

@@ -16,10 +16,8 @@ import React from 'react';
 import MuiTreeView, { TreeViewProps } from '@mui/lab/TreeView';
 import '@mui/lab/themeAugmentation';
 import { Components, Theme } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import CaretRightIcon from '@hcl-software/enchanted-icons/dist/carbon/es/caret--right';
-import CaretDownIcon from '@hcl-software/enchanted-icons/dist/carbon/es/caret--down';
-import { fontSize } from '@mui/system';
+import ChevronDownIcon from '@hcl-software/enchanted-icons/dist/carbon/es/chevron--down';
+import ChevronRight from '@hcl-software/enchanted-icons/dist/carbon/es/chevron--right';
 
 export { TreeViewProps };
 
@@ -43,66 +41,98 @@ export const getMuiTreeViewThemeOverrides = (): Components<Omit<Theme, 'componen
         root: ({ theme }: { theme: Theme }) => {
           return {
             '& .MuiTreeItem-content': {
+              position: 'relative',
               minHeight: '28px',
               height: 'auto',
-              padding: '0 6px 0 4px',
+              padding: '0 10px 0 4px',
               borderRadius: '2px',
               gap: '4px',
+              '& .MuiTreeItem-label': {
+                paddingLeft: 0,
+              },
               '&:hover': {
                 backgroundColor: theme.palette.action.hover,
               },
               '&.Mui-selected': {
-                backgroundColor: theme.palette.action.selectedOpacityModified,
+                backgroundColor: theme.palette.action.selectedOpacity,
+                '& .tree-item-icon svg': {
+                  color: theme.palette.action.selected,
+                },
+                '& .tree-item-label-text': {
+                  color: theme.palette.action.selected,
+                },
+                '& .tree-item-details-text': {
+                  color: theme.palette.action.selected,
+                },
+                '& .tree-item-end-action svg': {
+                  color: theme.palette.action.selected,
+                },
+                '& .tree-item-hover-actions svg': {
+                  color: theme.palette.action.selected,
+                },
+                '& .MuiTreeItem-iconContainer svg': {
+                  color: theme.palette.action.selected,
+                },
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: '3px',
+                  borderRadius: '2px 0 0 2px',
+                  backgroundColor: theme.palette.action.selected,
+                },
                 '&:hover': {
                   backgroundColor: theme.palette.action.selectedOpacityHover,
                 },
               },
-              '&.Mui-focused': {
-                backgroundColor: 'transparent',
+              '&:focus-visible': {
                 outline: `2px solid ${theme.palette.primary.main}`,
                 outlineOffset: '-2px',
                 '&.Mui-selected': {
-                  backgroundColor: theme.palette.action.selectedOpacityModified,
+                  backgroundColor: theme.palette.action.selectedOpacity,
+                  '&:hover': {
+                    backgroundColor: theme.palette.action.selectedOpacityHover,
+                  },
                 },
               },
+              // '&.Mui-focused': {
+              //   backgroundColor: 'transparent',
+              // },
               '&.Mui-disabled': {
-                opacity: 1,
+                pointerEvents: 'none',
               },
-              '&:hover .tree-item-hover-actions': {
+              '&:hover .tree-item-hover-actions, &.Mui-focused .tree-item-hover-actions': {
                 opacity: 1,
               },
             },
             '& .MuiTreeItem-iconContainer': {
-              width: '16px',
+              width: '16px !important',
               height: '16px',
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginLeft: '4px',
-              marginRight: '0px',
+              marginLeft: 0,
+              marginRight: '0 !important',
               '& svg': {
-                fontSize: '16px',
+                fontSize: '16px !important',
                 color: theme.palette.text.secondary,
               },
             },
             '& .MuiTreeItem-label': {
-              ...theme.typography.body2,
-              color: theme.palette.text.primary,
-              paddingLeft: '4px',
-              paddingRight: '4px',
+              padding: 0,
               overflow: 'hidden',
               display: 'flex',
               alignItems: 'center',
-              width: '100%',
+              flex: 1,
+              minWidth: 0,
+              ...theme.typography.body2,
+              color: theme.palette.text.primary,
             },
             '&.Mui-disabled > .MuiTreeItem-content': {
-              '& .MuiTreeItem-label': {
-                color: theme.palette.text.disabled,
-              },
-              '& .MuiTreeItem-iconContainer svg': {
-                color: theme.palette.text.disabled,
-              },
+              pointerEvents: 'none',
             },
             '& .MuiTreeItem-group': {
               marginLeft: '12px',
@@ -116,27 +146,14 @@ export const getMuiTreeViewThemeOverrides = (): Components<Omit<Theme, 'componen
   };
 };
 
-const StyledTreeView = styled(MuiTreeView)(() => {
-  return {
-    '&.MuiTreeView-root': {
-      padding: '0px',
-    },
-  };
-});
-
 const TreeView = React.forwardRef<HTMLUListElement, TreeViewProps>(
   (props: TreeViewProps, ref: React.Ref<HTMLUListElement>) => {
-    const {
-      defaultCollapseIcon,
-      defaultExpandIcon,
-      ...rest
-    } = props;
-
+    const { defaultCollapseIcon, defaultExpandIcon, ...rest } = props;
     return (
-      <StyledTreeView
+      <MuiTreeView
         ref={ref}
-        defaultCollapseIcon={defaultCollapseIcon ?? <CaretDownIcon />}
-        defaultExpandIcon={defaultExpandIcon ?? <CaretRightIcon />}
+        defaultCollapseIcon={defaultCollapseIcon ?? <ChevronDownIcon />}
+        defaultExpandIcon={defaultExpandIcon ?? <ChevronRight />}
         {...rest}
       />
     );
@@ -146,4 +163,6 @@ const TreeView = React.forwardRef<HTMLUListElement, TreeViewProps>(
 TreeView.displayName = 'TreeView';
 
 export * from '@mui/lab/TreeView';
+export { default as TreeItem } from './TreeItem';
+export type { EnhancedTreeItemProps } from './TreeItem';
 export default TreeView;
