@@ -35,15 +35,63 @@ export default {
   argTypes: {
     multiSelect: {
       if: { arg: 'interactive' },
-      description: 'If true, ctrl and shift will trigger multiselect',
+      description: 'If true, ctrl and shift will trigger multiselect.',
       control: { type: 'boolean' },
       table: { defaultValue: { summary: 'false' } },
     },
     disableSelection: {
       if: { arg: 'interactive' },
-      description: 'If true, selection is disabled',
+      description: 'If true, selection is disabled.',
       control: { type: 'boolean' },
       table: { defaultValue: { summary: 'false' } },
+    },
+    showStartIcon: {
+      if: { arg: 'interactive' },
+      description: 'Show a start icon on each item, only for Storybook use.',
+      control: { type: 'boolean' },
+      table: { defaultValue: { summary: 'true' } },
+    },
+    showStatusBadge: {
+      if: { arg: 'interactive' },
+      description: 'Show a status badge on each item, only for Storybook use.',
+      control: { type: 'boolean' },
+      table: { defaultValue: { summary: 'true' } },
+    },
+    showDetailsIcon: {
+      if: { arg: 'interactive' },
+      description: 'Show a details icon on each item, only for Storybook use.',
+      control: { type: 'boolean' },
+      table: { defaultValue: { summary: 'true' } },
+    },
+    showDetailsText: {
+      if: { arg: 'interactive' },
+      description: 'Show details text on each item, only for Storybook use.',
+      control: { type: 'boolean' },
+      table: { defaultValue: { summary: 'true' } },
+    },
+    showEndIcon: {
+      if: { arg: 'interactive' },
+      description: 'Show an end icon on each item, only for Storybook use.',
+      control: { type: 'boolean' },
+      table: { defaultValue: { summary: 'true' } },
+    },
+    showEndAction: {
+      if: { arg: 'interactive' },
+      description: 'Show an end action (overflow menu) on each item, only for Storybook use.',
+      control: { type: 'boolean' },
+      table: { defaultValue: { summary: 'true' } },
+    },
+    showHoverActions: {
+      if: { arg: 'interactive' },
+      description: 'Show hover action buttons on each item, only for Storybook use.',
+      control: { type: 'boolean' },
+      table: { defaultValue: { summary: 'false' } },
+    },
+    disabled: {
+      if: { arg: 'interactive' },
+      description: 'If true, the last item will be rendered as disabled.',
+      control: { type: 'boolean' },
+      table: { defaultValue: { summary: 'true' } },
     },
     defaultExpanded: { table: { disable: true } },
     defaultCollapseIcon: { table: { disable: true } },
@@ -62,73 +110,157 @@ export default {
   },
 } as Meta<typeof TreeView>;
 
-/* Status badge helper */
+/* ── Shared helpers ──────────────────────────────────────────────────────── */
 const StatusBadge = () => {
   return (
     <CustomIconUserStatusActive style={{ fontSize: 16, color: '#15D36E' }} sx={{ '& path': { stroke: '#07432F' } }} />
-  // <Badge
-  //   badgeContent=""
-  //   color="success"
-  //   variant="dot"
-  //   sx={{ '& .MuiBadge-badge': { width: 16, height: 16, borderRadius: '1000px' } }}
-  // />
   );
 };
 
-/* ── Interactive story ─────────────────────────────────────────────────── */
-type InteractiveArgs = { multiSelect?: boolean; disableSelection?: boolean };
-const InteractiveTemplate: StoryFn<InteractiveArgs> = (args) => {
-  const overflowAction = (
+/* ── Interactive template ────────────────────────────────────────────────── */
+interface ExtendedTreeViewArgs {
+  interactive?: boolean;
+  multiSelect?: boolean;
+  disableSelection?: boolean;
+  showStartIcon?: boolean;
+  showStatusBadge?: boolean;
+  showDetailsIcon?: boolean;
+  showDetailsText?: boolean;
+  showEndIcon?: boolean;
+  showEndAction?: boolean;
+  showHoverActions?: boolean;
+  disabled?: boolean;
+}
+
+const Template: StoryFn<ExtendedTreeViewArgs> = (args) => {
+  const {
+    multiSelect,
+    disableSelection,
+    showStartIcon,
+    showStatusBadge,
+    showDetailsIcon,
+    showDetailsText,
+    showEndIcon,
+    showEndAction,
+    showHoverActions,
+    disabled,
+  } = args;
+
+  const [selected, setSelected] = React.useState<string[]>([]);
+
+  const handleNodeSelect = (_event: React.SyntheticEvent, nodeIds: string | string[]) => {
+    setSelected(Array.isArray(nodeIds) ? nodeIds : [nodeIds]);
+  };
+
+  const overflowAction = showEndAction ? (
     <IconButton size="small" variant={IconButtonVariants.WITHOUT_PADDING} showendicon={0}>
       <OverflowMenuHorizontalIcon />
     </IconButton>
-  );
-  const hoverActionButtons = (
+  ) : undefined;
+
+  const hoverActionButtons = showHoverActions ? (
     <>
       <IconButton size="small" variant={IconButtonVariants.WITHOUT_PADDING} showendicon={0}><IconView /></IconButton>
       <IconButton size="small" variant={IconButtonVariants.WITHOUT_PADDING} showendicon={0}><OverflowMenuHorizontalIcon /></IconButton>
     </>
-  );
+  ) : undefined;
+
+  const treeRef = React.useRef<HTMLUListElement>(null);
+
+  React.useEffect(() => {
+    const handleDocMouseDown = (e: MouseEvent) => {
+      if (treeRef.current && !treeRef.current.contains(e.target as Node)) {
+        setSelected([]);
+      }
+    };
+    document.addEventListener('mousedown', handleDocMouseDown);
+    return () => { return document.removeEventListener('mousedown', handleDocMouseDown); };
+  }, []);
 
   return (
-    <TreeView
-      multiSelect={args.multiSelect}
-      disableSelection={args.disableSelection}
-      defaultExpanded={['1', '3']}
-    >
-      {/* Default – all Figma slots */}
-      <TreeItem
-        nodeId="1"
-        label="Item"
-        startIcon={<DocumentIcon />}
-        statusBadge={<StatusBadge />}
-        detailsIcon={<ArrowLeftIcon />}
-        detailsText="Text"
-        endIcon={<HomeIcon />}
-        endAction={overflowAction}
-        hoverActions={hoverActionButtons}
+    <Box>
+      <TreeView
+        ref={treeRef}
+        key={String(disabled)}
+        multiSelect={multiSelect as true | undefined}
+        disableSelection={disableSelection}
+        defaultExpanded={['1']}
+        selected={selected}
+        onNodeSelect={handleNodeSelect}
       >
-        {/* Hover actions variant */}
         <TreeItem
-          nodeId="2"
-          label="Chrome"
-          startIcon={<DocumentIcon />}
+          nodeId="1"
+          label="Folder"
+          startIcon={showStartIcon ? <FolderIcon /> : undefined}
+          statusBadge={showStatusBadge ? <StatusBadge /> : undefined}
+          detailsIcon={showDetailsIcon ? <ArrowLeftIcon /> : undefined}
+          detailsText={showDetailsText ? 'Details' : undefined}
+          endIcon={showEndIcon ? <HomeIcon /> : undefined}
+          endAction={overflowAction}
           hoverActions={hoverActionButtons}
         >
-          <TreeItem nodeId="3" label="Default Settings" startIcon={<DocumentIcon />} hoverActions={hoverActionButtons} />
+          <TreeItem
+            nodeId="2"
+            label="Item one"
+            startIcon={showStartIcon ? <DocumentIcon /> : undefined}
+            statusBadge={showStatusBadge ? <StatusBadge /> : undefined}
+            detailsIcon={showDetailsIcon ? <ArrowLeftIcon /> : undefined}
+            detailsText={showDetailsText ? 'Details' : undefined}
+            endIcon={showEndIcon ? <HomeIcon /> : undefined}
+            endAction={overflowAction}
+            hoverActions={hoverActionButtons}
+          >
+            <TreeItem
+              nodeId="2-1"
+              label="Sub-item one"
+              startIcon={showStartIcon ? <DocumentIcon /> : undefined}
+              statusBadge={showStatusBadge ? <StatusBadge /> : undefined}
+              detailsIcon={showDetailsIcon ? <ArrowLeftIcon /> : undefined}
+              detailsText={showDetailsText ? 'Details' : undefined}
+              endIcon={showEndIcon ? <HomeIcon /> : undefined}
+              endAction={overflowAction}
+              hoverActions={hoverActionButtons}
+            />
+          </TreeItem>
+          <TreeItem
+            nodeId="3"
+            label="Item two"
+            startIcon={showStartIcon ? <DocumentIcon /> : undefined}
+            statusBadge={showStatusBadge ? <StatusBadge /> : undefined}
+            detailsIcon={showDetailsIcon ? <ArrowLeftIcon /> : undefined}
+            detailsText={showDetailsText ? 'Details' : undefined}
+            endIcon={showEndIcon ? <HomeIcon /> : undefined}
+            endAction={overflowAction}
+            hoverActions={hoverActionButtons}
+          />
         </TreeItem>
-      </TreeItem>
-      {/* Disabled */}
-      <TreeItem nodeId="4" label="Bootstrap" startIcon={<DocumentIcon />} disabled>
-        <TreeItem nodeId="5" label="test" startIcon={<DocumentIcon />} />
-      </TreeItem>
-    </TreeView>
+        <TreeItem
+          nodeId="4"
+          label="Disabled item"
+          startIcon={showStartIcon ? <DocumentIcon /> : undefined}
+          disabled={disabled}
+        />
+      </TreeView>
+    </Box>
   );
 };
 
-export const ExampleTreeView = InteractiveTemplate.bind({});
-ExampleTreeView.args = { multiSelect: false, disableSelection: false };
-ExampleTreeView.parameters = { controls: { include: ['multiSelect', 'disableSelection'] } };
+export const InteractiveExample = {
+  render: Template,
+  args: {
+    interactive: true,
+    multiSelect: false,
+    disableSelection: false,
+    showStartIcon: true,
+    showStatusBadge: true,
+    showDetailsIcon: true,
+    showDetailsText: true,
+    showEndIcon: true,
+    showEndAction: true,
+    showHoverActions: false,
+    disabled: true,
+  },
+};
 
 /* ── Visual test – all Figma variants ─────────────────────────────────── */
 const VisualTestTemplate: StoryFn<object> = () => {
@@ -166,47 +298,35 @@ const VisualTestTemplate: StoryFn<object> = () => {
   };
 
   return (
-    <Box sx={{
-      display: 'flex', flexDirection: 'column', gap: 4, p: 2,
-    }}
+    <Box
+      sx={{
+        display: 'flex', flexDirection: 'column', gap: 4, p: 2,
+      }}
     >
-      {/* ── State=Default, Selected=False, Hover actions=False ── */}
       <Box>
         <Box sx={{ mb: 1, typography: 'caption', color: 'text.secondary' }}>State=Default · Selected=False · Hover actions=False</Box>
-        <TreeView defaultExpanded={['a1']}>
-          {fullItem('a1')}
-        </TreeView>
+        <TreeView defaultExpanded={['a1']}>{fullItem('a1')}</TreeView>
       </Box>
 
-      {/* ── State=Default, Selected=False, Hover actions=True ── */}
       <Box>
         <Box sx={{ mb: 1, typography: 'caption', color: 'text.secondary' }}>State=Default · Selected=False · Hover actions=True</Box>
-        <TreeView defaultExpanded={['b1']}>
-          {fullItem('b1', { hoverActions: hoverActionButtons, endAction: undefined })}
-        </TreeView>
+        <TreeView defaultExpanded={['b1']}>{fullItem('b1', { hoverActions: hoverActionButtons, endAction: undefined })}</TreeView>
       </Box>
 
-      {/* ── State=Default, Selected=True, Hover actions=False ── */}
       <Box>
         <Box sx={{ mb: 1, typography: 'caption', color: 'text.secondary' }}>State=Default · Selected=True · Hover actions=False</Box>
         <TreeView defaultExpanded={['c1']} defaultSelected="c2">
-          <TreeItem nodeId="c1" label="Folder" startIcon={<FolderIcon />}>
-            {fullItem('c2')}
-          </TreeItem>
+          <TreeItem nodeId="c1" label="Folder" startIcon={<FolderIcon />}>{fullItem('c2')}</TreeItem>
         </TreeView>
       </Box>
 
-      {/* ── State=Default, Selected=True, Hover actions=True ── */}
       <Box>
         <Box sx={{ mb: 1, typography: 'caption', color: 'text.secondary' }}>State=Default · Selected=True · Hover actions=True</Box>
         <TreeView defaultExpanded={['d1']} defaultSelected="d2">
-          <TreeItem nodeId="d1" label="Folder" startIcon={<FolderIcon />}>
-            {fullItem('d2', { hoverActions: hoverActionButtons, endAction: undefined })}
-          </TreeItem>
+          <TreeItem nodeId="d1" label="Folder" startIcon={<FolderIcon />}>{fullItem('d2', { hoverActions: hoverActionButtons, endAction: undefined })}</TreeItem>
         </TreeView>
       </Box>
 
-      {/* ── No optional slots ── */}
       <Box>
         <Box sx={{ mb: 1, typography: 'caption', color: 'text.secondary' }}>Minimal – label only</Box>
         <TreeView defaultExpanded={['e1']}>
@@ -217,7 +337,6 @@ const VisualTestTemplate: StoryFn<object> = () => {
         </TreeView>
       </Box>
 
-      {/* ── Disabled ── */}
       <Box>
         <Box sx={{ mb: 1, typography: 'caption', color: 'text.secondary' }}>Disabled</Box>
         <TreeView defaultExpanded={['f1']}>

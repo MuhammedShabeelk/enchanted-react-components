@@ -18,6 +18,9 @@ import '@mui/lab/themeAugmentation';
 import { Components, Theme } from '@mui/material';
 import ChevronDownIcon from '@hcl-software/enchanted-icons/dist/carbon/es/chevron--down';
 import ChevronRight from '@hcl-software/enchanted-icons/dist/carbon/es/chevron--right';
+import { TreeViewContext } from './TreeItem';
+
+export { TreeViewContext, TreeDepthContext } from './TreeItem';
 
 export { TreeViewProps };
 
@@ -87,9 +90,43 @@ export const getMuiTreeViewThemeOverrides = (): Components<Omit<Theme, 'componen
                   backgroundColor: theme.palette.action.selectedOpacityHover,
                 },
               },
+              '&.Mui-disabled.Mui-selected': {
+                backgroundColor: 'transparent',
+                '& .tree-item-icon svg': {
+                  color: theme.palette.text.secondary,
+                },
+                '& .tree-item-label-text': {
+                  color: theme.palette.text.primary,
+                },
+                '& .tree-item-details-text': {
+                  color: theme.palette.text.secondary,
+                },
+                '& .tree-item-end-action svg': {
+                  color: theme.palette.text.secondary,
+                },
+                '& .tree-item-hover-actions svg': {
+                  color: theme.palette.text.secondary,
+                },
+                '& .MuiTreeItem-iconContainer svg': {
+                  color: theme.palette.text.secondary,
+                },
+                '&::before': {
+                  backgroundColor: theme.palette.text.secondary,
+                },
+                '&:hover': {
+                  backgroundColor: 'transparent',
+                },
+              },
+              '&.Mui-focused': {
+                backgroundColor: 'transparent',
+              },
+              '&.Mui-focused.Mui-selected': {
+                backgroundColor: `${theme.palette.action.selectedOpacity} !important`,
+                '&:hover': {
+                  backgroundColor: `${theme.palette.action.selectedOpacityHover} !important`,
+                },
+              },
               '&:focus-visible': {
-                outline: `2px solid ${theme.palette.primary.main}`,
-                outlineOffset: '-2px',
                 '&.Mui-selected': {
                   backgroundColor: theme.palette.action.selectedOpacity,
                   '&:hover': {
@@ -97,13 +134,10 @@ export const getMuiTreeViewThemeOverrides = (): Components<Omit<Theme, 'componen
                   },
                 },
               },
-              // '&.Mui-focused': {
-              //   backgroundColor: 'transparent',
-              // },
               '&.Mui-disabled': {
                 pointerEvents: 'none',
               },
-              '&:hover .tree-item-hover-actions, &.Mui-focused .tree-item-hover-actions': {
+              '&:hover .tree-item-hover-actions, &.Mui-focused .tree-item-hover-actions, &:focus-within .tree-item-hover-actions': {
                 opacity: 1,
               },
             },
@@ -131,13 +165,25 @@ export const getMuiTreeViewThemeOverrides = (): Components<Omit<Theme, 'componen
               ...theme.typography.body2,
               color: theme.palette.text.primary,
             },
+            '&:has(> .MuiTreeItem-content.Mui-focused)': {
+              position: 'relative',
+            },
+            '&.keyboard-focused': {
+              boxShadow: `0 0 0 2px ${theme.palette.primary.main}`,
+              zIndex: 1,
+              borderRadius: '2px',
+            },
             '&.Mui-disabled > .MuiTreeItem-content': {
               pointerEvents: 'none',
             },
             '& .MuiTreeItem-group': {
-              marginLeft: '12px',
-              paddingLeft: '8px',
-              borderLeft: `1px solid ${theme.palette.border.secondary}`,
+              position: 'relative',
+              marginLeft: 0,
+              paddingLeft: 0,
+            },
+            '&:has(> .MuiTreeItem-content.Mui-selected) > .MuiTreeItem-group': {
+              backgroundColor: 'rgba(5, 80, 220, 0.04)',
+              borderRadius: '0 0 2px 2px',
             },
           };
         },
@@ -148,14 +194,111 @@ export const getMuiTreeViewThemeOverrides = (): Components<Omit<Theme, 'componen
 
 const TreeView = React.forwardRef<HTMLUListElement, TreeViewProps>(
   (props: TreeViewProps, ref: React.Ref<HTMLUListElement>) => {
-    const { defaultCollapseIcon, defaultExpandIcon, ...rest } = props;
+    const {
+      defaultCollapseIcon, defaultExpandIcon, onMouseLeave, ...rest
+    } = props;
+
+    const treeRef = React.useRef<HTMLUListElement>(null);
+    // Accordion pattern: ref (not state) so MutationObserver callbacks read it synchronously.
+    const isKeyboardNav = React.useRef(false);
+
+    const combinedRef = (node: HTMLUListElement) => {
+      (treeRef as React.MutableRefObject<HTMLUListElement | null>).current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as React.MutableRefObject<HTMLUListElement | null>).current = node;
+    };
+
+    // Accordion pattern: window-level keydown/mousedown listeners.
+    React.useEffect(() => {
+      const handleWinKeyDown = () => { isKeyboardNav.current = true; };
+      const handleWinMouseDown = () => { isKeyboardNav.current = false; };
+      window.addEventListener('keydown', handleWinKeyDown);
+      window.addEventListener('mousedown', handleWinMouseDown);
+      return () => {
+        window.removeEventListener('keydown', handleWinKeyDown);
+        window.removeEventListener('mousedown', handleWinMouseDown);
+      };
+    }, []);
+
+    const handleMouseLeave = (e: React.MouseEvent<HTMLUListElement>) => {
+      const active = document.activeElement as HTMLElement | null;
+      if (active && e.currentTarget.contains(active) && !active.matches(':focus-visible')) {
+        active.blur();
+      }
+      onMouseLeave?.(e);
+    };
+
+    const focusTree = React.useCallback(() => {
+      treeRef.current?.focus();
+    }, []);
+
+    // Arrow key from action button: return DOM focus to tree ul so MUI restores
+    // its internal focusedNodeId (synchronous ref update), then dispatch the key.
+    const navigateWithKey = React.useCallback((key: string) => {
+      const tree = treeRef.current;
+      if (!tree) return;
+      tree.focus();
+      tree.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    }, []);
+
+    const navigateToNextItemAction = React.useCallback((reverse: boolean, fromContent: HTMLElement) => {
+      const tree = treeRef.current;
+      if (!tree) return;
+      const allContents = Array.from(
+        tree.querySelectorAll<HTMLElement>('.MuiTreeItem-content'),
+      ).filter((el) => { return el.offsetParent !== null; });
+      const currentIndex = allContents.indexOf(fromContent);
+      const step = reverse ? -1 : 1;
+      for (let i = currentIndex + step; reverse ? i >= 0 : i < allContents.length; i += step) {
+        const buttons = allContents[i].querySelectorAll<HTMLElement>(
+          '.tree-item-end-action button:not([disabled]), .tree-item-hover-actions button:not([disabled])',
+        );
+        if (buttons.length > 0) {
+          buttons[0].focus();
+          return;
+        }
+      }
+      tree.focus();
+    }, []);
+
+    // Tab key: if a tree item has Mui-focused, move to its first action button.
+    const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLUListElement>) => {
+      if (e.key === 'Tab' && !e.shiftKey) {
+        const focusedContent = treeRef.current?.querySelector<HTMLElement>('.MuiTreeItem-content.Mui-focused');
+        if (focusedContent) {
+          const buttons = Array.from(
+            focusedContent.querySelectorAll<HTMLElement>(
+              '.tree-item-end-action button:not([disabled]), .tree-item-hover-actions button:not([disabled])',
+            ),
+          );
+          if (buttons.length > 0) {
+            e.preventDefault();
+            buttons[0].focus();
+          }
+        }
+      }
+    }, []);
+
+    const contextValue = React.useMemo(
+      () => {
+        return {
+          usingKeyboardRef: isKeyboardNav, focusTree, navigateWithKey, navigateToNextItemAction,
+        };
+      },
+      [focusTree, navigateWithKey, navigateToNextItemAction],
+    );
+
     return (
-      <MuiTreeView
-        ref={ref}
-        defaultCollapseIcon={defaultCollapseIcon ?? <ChevronDownIcon />}
-        defaultExpandIcon={defaultExpandIcon ?? <ChevronRight />}
-        {...rest}
-      />
+      <TreeViewContext.Provider value={contextValue}>
+        <MuiTreeView
+          ref={combinedRef}
+          defaultCollapseIcon={defaultCollapseIcon ?? <ChevronDownIcon />}
+          defaultExpandIcon={defaultExpandIcon ?? <ChevronRight />}
+          onMouseLeave={handleMouseLeave}
+          onKeyDown={handleKeyDown}
+          {...rest}
+        />
+      </TreeViewContext.Provider>
     );
   },
 );
@@ -164,5 +307,5 @@ TreeView.displayName = 'TreeView';
 
 export * from '@mui/lab/TreeView';
 export { default as TreeItem } from './TreeItem';
-export type { EnhancedTreeItemProps } from './TreeItem';
+export type { EnhancedTreeItemProps, TreeViewContextValue } from './TreeItem';
 export default TreeView;

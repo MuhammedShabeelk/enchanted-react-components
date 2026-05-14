@@ -14,23 +14,32 @@
  * ======================================================================== */
 import React, { ReactNode } from 'react';
 import MuiTreeItem, { TreeItemProps } from '@mui/lab/TreeItem';
+// @ts-ignore - accessing MUI Lab's internal TreeViewContext (private API, no type declarations available)
+import MuiTreeViewInternalContextRaw from '@mui/lab/TreeView/TreeViewContext';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 
+const MuiTreeViewInternalContext = MuiTreeViewInternalContextRaw as React.Context<{ focus?: (event: unknown, nodeId: string) => void }>;
+
 /**
- * Full Figma-spec layout for a tree item row (212 × 28 px):
- *
- *  padding-left 4px
- *  [caret 16×16] gap-4px
- *  [startIcon 16×16] gap-4px
- *  [statusBadge 16×16] gap-4px
- *  [label text – flex fill]
- *  [detailsIcon 16×16] gap-4px [detailsText body2]
- *  gap-4px [endIcon 16×16] gap-8px [endAction 16×16]
- *  padding-right 6px
- *
- * hoverActions are shown only on row hover / keyboard focus.
+ * Context tracking nesting depth (0 = root level).
+ * Used to compute the level-line position and content padding.
  */
+export const TreeDepthContext = React.createContext(0);
+
+export interface TreeViewContextValue {
+  usingKeyboardRef: React.MutableRefObject<boolean>;
+  focusTree: () => void;
+  navigateWithKey: (key: string) => void;
+  navigateToNextItemAction: (reverse: boolean, fromContent: HTMLElement) => void;
+}
+export const TreeViewContext = React.createContext<TreeViewContextValue>({
+  usingKeyboardRef: { current: false },
+  focusTree: () => { return undefined; },
+  navigateWithKey: () => { return undefined; },
+  navigateToNextItemAction: () => { return undefined; },
+});
+
 export interface EnhancedTreeItemProps extends Omit<TreeItemProps, 'endIcon'> {
   /** Icon after the expand/collapse caret. 16×16. E.g. DocumentIcon. */
   startIcon?: ReactNode;
@@ -85,10 +94,137 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
       endIcon,
       endAction,
       hoverActions,
+      children,
       ...props
     },
     ref,
   ) => {
+    const depth = React.useContext(TreeDepthContext);
+    const {
+      usingKeyboardRef, focusTree, navigateToNextItemAction,
+    } = React.useContext(TreeViewContext);
+    // Access MUI's internal focus(event, nodeId) — lets us set focusedNodeId
+    // to the correct item before dispatching arrow keys, bypassing MUI's
+    // handleBlur-clears-focusedNodeId + handleFocus-restores-to-firstSelected issue.
+    const muiFocus = (React.useContext(MuiTreeViewInternalContext) as { focus?: (e: unknown, nodeId: string) => void }).focus;
+
+    // Per-item focus ring — Accordion pattern:
+    // Each item watches its own content for Mui-focused class changes,
+    // and shows the ring only when keyboard is being used.
+    const liRef = React.useRef<HTMLLIElement>(null);
+    const [isFocused, setIsFocused] = React.useState(false);
+
+    React.useEffect(() => {
+      const li = liRef.current;
+      if (!li) return undefined;
+      const content = li.querySelector('.MuiTreeItem-content');
+      if (!content) return undefined;
+      const observer = new MutationObserver(() => {
+        setIsFocused(content.classList.contains('Mui-focused') && usingKeyboardRef.current);
+      });
+      observer.observe(content, { attributes: true, attributeFilter: ['class'] });
+      return () => { return observer.disconnect(); };
+    }, [usingKeyboardRef]);
+
+    // Combine the forwarded ref with our own liRef.
+    const setRef = React.useCallback((node: HTMLLIElement) => {
+      (liRef as React.MutableRefObject<HTMLLIElement | null>).current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as React.MutableRefObject<HTMLLIElement | null>).current = node;
+    }, [ref]);
+
+    const handleActionKeyDown = (e: React.KeyboardEvent) => {
+      const treeUl = (e.currentTarget as HTMLElement).closest<HTMLElement>('ul[role="tree"]');
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!treeUl) { focusTree(); return; }
+        const li = (e.currentTarget as HTMLElement).closest<HTMLElement>('li[role="treeitem"]');
+        const content = li?.querySelector<HTMLElement>('.MuiTreeItem-content');
+        const allContents = Array.from(
+          treeUl.querySelectorAll<HTMLElement>('.MuiTreeItem-content'),
+        ).filter((el) => { return el.offsetParent !== null; });
+        const currentIndex = content ? allContents.indexOf(content) : -1;
+        const targetIndex = currentIndex + (e.key === 'ArrowDown' ? 1 : -1);
+        if (currentIndex === -1 || targetIndex < 0 || targetIndex >= allContents.length) {
+          focusTree();
+          return;
+        }
+        const targetLi = allContents[targetIndex].closest<HTMLElement>('li[role="treeitem"]');
+        const treeId = treeUl.id;
+        const liId = targetLi?.id ?? '';
+        const targetNodeId = treeId && liId.startsWith(`${treeId}-`)
+          ? liId.slice(treeId.length + 1)
+          : liId;
+        if (!targetNodeId) { focusTree(); return; }
+        // Focus tree (MUI handleFocus restores to firstSelected || first).
+        // Override in rAF after React flushes that state update.
+        treeUl.focus();
+        requestAnimationFrame(() => { muiFocus?.(e, targetNodeId); });
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (!treeUl) { focusTree(); return; }
+        const { key } = e;
+        // Two rAFs: first sets focusedNodeId to THIS item, second dispatches the key.
+        treeUl.focus();
+        requestAnimationFrame(() => {
+          muiFocus?.(e, props.nodeId);
+          requestAnimationFrame(() => {
+            treeUl.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+          });
+        });
+      } else if (e.key === 'Home' || e.key === 'End') {
+        e.preventDefault();
+        if (!treeUl) { focusTree(); return; }
+        const { key } = e;
+        // after handleFocus sets any focusedNodeId (needed to pass MUI's guard).
+        treeUl.focus();
+        requestAnimationFrame(() => {
+          treeUl.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+        });
+      } else if (e.key === 'Escape') {
+        e.stopPropagation();
+        focusTree();
+      } else if (e.key === 'Tab') {
+        const li = (e.currentTarget as HTMLElement).closest<HTMLElement>('li[role="treeitem"]') ?? undefined;
+        const content = li?.querySelector<HTMLElement>('.MuiTreeItem-content');
+        if (content) {
+          e.preventDefault();
+          navigateToNextItemAction(e.shiftKey, content);
+        }
+      }
+    };
+
+    // Content left padding: 4px (root) + 8px per nesting level.
+    // Keeps caret visually at 4px + depth*8 from the left edge.
+    const contentPaddingLeft = depth > 0 ? 4 + depth * 8 : undefined;
+
+    // Vertical level line sits at the horizontal center of the parent's caret:
+    // 4px (content padding) + 8px (half of 16px icon) = 12px, minus 1px (line width) = 11px base.
+    // Each deeper level adds 8px (= half icon width).
+    const lineLeft = 11 + depth * 8;
+
+    // Wrap children: render the real line div + increment depth for grandchildren.
+    const wrappedChildren = children ? (
+      <TreeDepthContext.Provider value={depth + 1}>
+        <Box
+          aria-hidden
+          className="tree-level-line"
+          sx={(theme) => {
+            return {
+              position: 'absolute',
+              left: `${lineLeft}px`,
+              top: 0,
+              bottom: 0,
+              width: '1px',
+              backgroundColor: theme.palette.border.secondary,
+              pointerEvents: 'none',
+              zIndex: 0,
+            };
+          }}
+        />
+        {children}
+      </TreeDepthContext.Provider>
+    ) : undefined;
     const customLabel = (
       <Box
         sx={{
@@ -108,40 +244,51 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
           </Box>
         )}
 
-        <Typography
-          className="tree-item-label-text"
-          variant="body2"
-          color="text.primary"
-          noWrap
-          sx={{
-            flex: '1 0 0',
-            minWidth: 0,
-          }}
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          flex: 1,
+          minWidth: 0,
+          overflow: 'hidden',
+        }}
         >
-          {label}
-        </Typography>
-
-        {(detailsIcon !== undefined || detailsText !== undefined) && (
-          <Box
+          <Typography
+            className="tree-item-label-text"
+            variant="body2"
+            color="text.primary"
+            noWrap
             sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              flexShrink: 0,
+              flexShrink: 1,
+              minWidth: 0,
             }}
           >
-            {detailsIcon && <IconSlot className="tree-item-details-icon">{detailsIcon}</IconSlot>}
-            {detailsText !== undefined && (
-              <Typography className="tree-item-details-text" variant="body2" color="text.secondary" noWrap sx={{ flexShrink: 0 }}>
-                {detailsText}
-              </Typography>
-            )}
-          </Box>
-        )}
+            {label}
+          </Typography>
+
+          {(detailsIcon !== undefined || detailsText !== undefined) && (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                flexShrink: 0,
+              }}
+            >
+              {detailsIcon && <IconSlot className="tree-item-details-icon">{detailsIcon}</IconSlot>}
+              {detailsText !== undefined && (
+                <Typography className="tree-item-details-text" variant="body2" color="text.secondary" noWrap sx={{ flexShrink: 0 }}>
+                  {detailsText}
+                </Typography>
+              )}
+            </Box>
+          )}
+        </Box>
 
         {(endIcon !== undefined || endAction !== undefined) && (
           <Box
             className="tree-item-end-action"
+            onKeyDown={handleActionKeyDown}
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -157,6 +304,7 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
         {hoverActions && (
           <Box
             className="tree-item-hover-actions"
+            onKeyDown={handleActionKeyDown}
             sx={{
               maxWidth: 0,
               overflow: 'hidden',
@@ -167,7 +315,7 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
               alignItems: 'center',
               gap: '8px',
               marginLeft: '4px',
-              '.MuiTreeItem-content:hover &, .MuiTreeItem-content.Mui-focused &': {
+              '.MuiTreeItem-content:hover &, .MuiTreeItem-content.Mui-focused &, .MuiTreeItem-content:focus-within &': {
                 maxWidth: '200px',
                 opacity: 1,
               },
@@ -179,7 +327,17 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
       </Box>
     );
 
-    return <MuiTreeItem ref={ref} {...props} label={customLabel} />;
+    return (
+      <MuiTreeItem
+        ref={setRef}
+        className={isFocused ? 'keyboard-focused' : undefined}
+        ContentProps={contentPaddingLeft !== undefined ? { style: { paddingLeft: `${contentPaddingLeft}px` } } : undefined}
+        {...props}
+        label={customLabel}
+      >
+        {wrappedChildren}
+      </MuiTreeItem>
+    );
   },
 );
 
