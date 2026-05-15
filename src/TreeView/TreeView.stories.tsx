@@ -85,13 +85,20 @@ export default {
       if: { arg: 'interactive' },
       description: 'Show hover action buttons on each item, only for Storybook use.',
       control: { type: 'boolean' },
-      table: { defaultValue: { summary: 'false' } },
+      table: { defaultValue: { summary: 'true' } },
     },
     disabled: {
       if: { arg: 'interactive' },
       description: 'If true, the last item will be rendered as disabled.',
       control: { type: 'boolean' },
       table: { defaultValue: { summary: 'true' } },
+    },
+    detailsAlign: {
+      if: { arg: 'interactive' },
+      description: 'Controls where detailsIcon/detailsText are placed. "label" = hugged after label text; "end" = right-aligned before endIcon/endAction.',
+      control: { type: 'radio' },
+      options: ['label', 'end'],
+      table: { defaultValue: { summary: 'label' } },
     },
     defaultExpanded: { table: { disable: true } },
     defaultCollapseIcon: { table: { disable: true } },
@@ -130,6 +137,7 @@ interface ExtendedTreeViewArgs {
   showEndAction?: boolean;
   showHoverActions?: boolean;
   disabled?: boolean;
+  detailsAlign?: 'label' | 'end';
 }
 
 const Template: StoryFn<ExtendedTreeViewArgs> = (args) => {
@@ -144,6 +152,7 @@ const Template: StoryFn<ExtendedTreeViewArgs> = (args) => {
     showEndAction,
     showHoverActions,
     disabled,
+    detailsAlign = 'label',
   } = args;
 
   const [selected, setSelected] = React.useState<string[]>([]);
@@ -153,15 +162,20 @@ const Template: StoryFn<ExtendedTreeViewArgs> = (args) => {
   };
 
   const overflowAction = showEndAction ? (
-    <IconButton size="small" variant={IconButtonVariants.WITHOUT_PADDING} showendicon={0}>
+    <IconButton
+      size="small"
+      variant={IconButtonVariants.WITHOUT_PADDING}
+      showendicon={0}
+      onClick={(e) => { e.stopPropagation(); }}
+    >
       <OverflowMenuHorizontalIcon />
     </IconButton>
   ) : undefined;
 
   const hoverActionButtons = showHoverActions ? (
     <>
-      <IconButton size="small" variant={IconButtonVariants.WITHOUT_PADDING} showendicon={0}><IconView /></IconButton>
-      <IconButton size="small" variant={IconButtonVariants.WITHOUT_PADDING} showendicon={0}><OverflowMenuHorizontalIcon /></IconButton>
+      <IconButton size="small" variant={IconButtonVariants.WITHOUT_PADDING} showendicon={0} onClick={(e) => { e.stopPropagation(); }}><IconView /></IconButton>
+      <IconButton size="small" variant={IconButtonVariants.WITHOUT_PADDING} showendicon={0} onClick={(e) => { e.stopPropagation(); }}><OverflowMenuHorizontalIcon /></IconButton>
     </>
   ) : undefined;
 
@@ -190,11 +204,12 @@ const Template: StoryFn<ExtendedTreeViewArgs> = (args) => {
       >
         <TreeItem
           nodeId="1"
-          label="Folder"
-          startIcon={showStartIcon ? <FolderIcon /> : undefined}
+          label="Item"
+          startIcon={showStartIcon ? <DocumentIcon /> : undefined}
           statusBadge={showStatusBadge ? <StatusBadge /> : undefined}
           detailsIcon={showDetailsIcon ? <ArrowLeftIcon /> : undefined}
           detailsText={showDetailsText ? 'Details' : undefined}
+          detailsAlign={detailsAlign}
           endIcon={showEndIcon ? <HomeIcon /> : undefined}
           endAction={overflowAction}
           hoverActions={hoverActionButtons}
@@ -206,40 +221,64 @@ const Template: StoryFn<ExtendedTreeViewArgs> = (args) => {
             statusBadge={showStatusBadge ? <StatusBadge /> : undefined}
             detailsIcon={showDetailsIcon ? <ArrowLeftIcon /> : undefined}
             detailsText={showDetailsText ? 'Details' : undefined}
+            detailsAlign={detailsAlign}
             endIcon={showEndIcon ? <HomeIcon /> : undefined}
             endAction={overflowAction}
             hoverActions={hoverActionButtons}
           >
             <TreeItem
-              nodeId="2-1"
+              nodeId="3"
               label="Sub-item one"
               startIcon={showStartIcon ? <DocumentIcon /> : undefined}
               statusBadge={showStatusBadge ? <StatusBadge /> : undefined}
               detailsIcon={showDetailsIcon ? <ArrowLeftIcon /> : undefined}
               detailsText={showDetailsText ? 'Details' : undefined}
+              detailsAlign={detailsAlign}
               endIcon={showEndIcon ? <HomeIcon /> : undefined}
               endAction={overflowAction}
               hoverActions={hoverActionButtons}
-            />
+            >
+              <TreeItem
+                nodeId="4"
+                label="Sub-sub-item one"
+                startIcon={showStartIcon ? <DocumentIcon /> : undefined}
+                statusBadge={showStatusBadge ? <StatusBadge /> : undefined}
+                detailsIcon={showDetailsIcon ? <ArrowLeftIcon /> : undefined}
+                detailsText={showDetailsText ? 'Details' : undefined}
+                detailsAlign={detailsAlign}
+                endIcon={showEndIcon ? <HomeIcon /> : undefined}
+                endAction={overflowAction}
+                hoverActions={hoverActionButtons}
+              >
+                <TreeItem
+                  nodeId="5"
+                  label="Sub-sub-sub-item one"
+                  startIcon={showStartIcon ? <DocumentIcon /> : undefined}
+                  statusBadge={showStatusBadge ? <StatusBadge /> : undefined}
+                  detailsIcon={showDetailsIcon ? <ArrowLeftIcon /> : undefined}
+                  detailsText={showDetailsText ? 'Details' : undefined}
+                  detailsAlign={detailsAlign}
+                  endIcon={showEndIcon ? <HomeIcon /> : undefined}
+                  endAction={overflowAction}
+                  hoverActions={hoverActionButtons}
+                />
+              </TreeItem>
+            </TreeItem>
           </TreeItem>
           <TreeItem
-            nodeId="3"
+            nodeId="6"
             label="Item two"
             startIcon={showStartIcon ? <DocumentIcon /> : undefined}
             statusBadge={showStatusBadge ? <StatusBadge /> : undefined}
             detailsIcon={showDetailsIcon ? <ArrowLeftIcon /> : undefined}
             detailsText={showDetailsText ? 'Details' : undefined}
+            detailsAlign={detailsAlign}
             endIcon={showEndIcon ? <HomeIcon /> : undefined}
             endAction={overflowAction}
             hoverActions={hoverActionButtons}
+            disabled={disabled}
           />
         </TreeItem>
-        <TreeItem
-          nodeId="4"
-          label="Disabled item"
-          startIcon={showStartIcon ? <DocumentIcon /> : undefined}
-          disabled={disabled}
-        />
       </TreeView>
     </Box>
   );
@@ -257,8 +296,9 @@ export const InteractiveExample = {
     showDetailsText: true,
     showEndIcon: true,
     showEndAction: true,
-    showHoverActions: false,
+    showHoverActions: true,
     disabled: true,
+    detailsAlign: 'label',
   },
 };
 

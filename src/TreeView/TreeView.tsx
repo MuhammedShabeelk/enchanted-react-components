@@ -56,6 +56,9 @@ export const getMuiTreeViewThemeOverrides = (): Components<Omit<Theme, 'componen
               '&:hover': {
                 backgroundColor: theme.palette.action.hover,
               },
+              '& .tree-item-details-icon svg': {
+                color: theme.palette.action.active,
+              },
               '&.Mui-selected': {
                 backgroundColor: theme.palette.action.selectedOpacity,
                 '& .tree-item-icon svg': {
@@ -246,7 +249,7 @@ const TreeView = React.forwardRef<HTMLUListElement, TreeViewProps>(
       if (!tree) return;
       const allContents = Array.from(
         tree.querySelectorAll<HTMLElement>('.MuiTreeItem-content'),
-      ).filter((el) => { return el.offsetParent !== null; });
+      ).filter((el) => { return el.offsetParent !== null && !el.classList.contains('Mui-disabled'); });
       const currentIndex = allContents.indexOf(fromContent);
       const step = reverse ? -1 : 1;
       for (let i = currentIndex + step; reverse ? i >= 0 : i < allContents.length; i += step) {

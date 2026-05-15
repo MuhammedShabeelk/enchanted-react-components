@@ -61,6 +61,12 @@ export interface EnhancedTreeItemProps extends Omit<TreeItemProps, 'endIcon'> {
   endAction?: ReactNode;
   /** Buttons revealed only on row hover / keyboard focus (opacity 0 → 1). */
   hoverActions?: ReactNode;
+  /**
+   * Controls where detailsIcon/detailsText are placed.
+   * - 'label' (default): hugged immediately after the label text.
+   * - 'end': right-aligned, placed before endIcon/endAction.
+   */
+  detailsAlign?: 'label' | 'end';
 }
 
 const ICON_SLOT_SX = {
@@ -91,6 +97,7 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
       statusBadge,
       detailsIcon,
       detailsText,
+      detailsAlign = 'label',
       endIcon,
       endAction,
       hoverActions,
@@ -142,7 +149,7 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
         const content = li?.querySelector<HTMLElement>('.MuiTreeItem-content');
         const allContents = Array.from(
           treeUl.querySelectorAll<HTMLElement>('.MuiTreeItem-content'),
-        ).filter((el) => { return el.offsetParent !== null; });
+        ).filter((el) => { return el.offsetParent !== null && !el.classList.contains('Mui-disabled'); });
         const currentIndex = content ? allContents.indexOf(content) : -1;
         const targetIndex = currentIndex + (e.key === 'ArrowDown' ? 1 : -1);
         if (currentIndex === -1 || targetIndex < 0 || targetIndex >= allContents.length) {
@@ -266,7 +273,7 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
             {label}
           </Typography>
 
-          {(detailsIcon !== undefined || detailsText !== undefined) && (
+          {detailsAlign === 'label' && (detailsIcon !== undefined || detailsText !== undefined) && (
             <Box
               sx={{
                 display: 'flex',
@@ -285,9 +292,28 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
           )}
         </Box>
 
+        {detailsAlign === 'end' && (detailsIcon !== undefined || detailsText !== undefined) && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              flexShrink: 0,
+            }}
+          >
+            {detailsIcon && <IconSlot className="tree-item-details-icon">{detailsIcon}</IconSlot>}
+            {detailsText !== undefined && (
+              <Typography className="tree-item-details-text" variant="body2" color="text.secondary" noWrap sx={{ flexShrink: 0 }}>
+                {detailsText}
+              </Typography>
+            )}
+          </Box>
+        )}
+
         {(endIcon !== undefined || endAction !== undefined) && (
           <Box
             className="tree-item-end-action"
+            onClick={(e) => { e.stopPropagation(); }}
             onKeyDown={handleActionKeyDown}
             sx={{
               display: 'flex',
@@ -296,7 +322,13 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
               flexShrink: 0,
             }}
           >
-            {endIcon && <IconSlot className="tree-item-end-icon">{endIcon}</IconSlot>}
+            {endIcon && (
+            <IconSlot
+              className="tree-item-end-icon"
+            >
+              {endIcon}
+            </IconSlot>
+            )}
             {endAction}
           </Box>
         )}
@@ -304,6 +336,7 @@ const TreeItem = React.forwardRef<HTMLLIElement, EnhancedTreeItemProps>(
         {hoverActions && (
           <Box
             className="tree-item-hover-actions"
+            onClick={(e) => { e.stopPropagation(); }}
             onKeyDown={handleActionKeyDown}
             sx={{
               maxWidth: 0,
